@@ -4,9 +4,9 @@
 
 ## 本机直接配置模型
 
-将 `.env.example` 复制为本目录的 `.env`，在本机编辑 `DEEPSEEK_API_KEY` 和 `DEEPSEEK_MODEL`，重启 `node server.mjs`。密钥不放网页、不提交 Git、不写运行日志。默认示例型号来自 [DeepSeek JSON Output 官方文档](https://api-docs.deepseek.com/guides/json_mode/)，实际可用型号以账户为准。
+将 `.env.example` 复制为本目录的 `.env`，在本机编辑 `AGENTSCOPE_API_KEY`（或 `DEEPSEEK_API_KEY`）及对应 `*_MODEL`，重启 `node server.mjs`。密钥不放网页、不提交 Git、不写运行日志。默认示例型号来自 [DeepSeek JSON Output 官方文档](https://api-docs.deepseek.com/guides/json_mode/)，实际可用型号以账户为准。
 
-默认进入“AI整理（工程接口）”。没有配置时返回 AI_NOT_CONFIGURED，消息保存为待处理；配置后点击“重试待整理消息”。没有规则回退。只有主动选择“规则演示”才走旧规则，预置任务详情明确标注不是 AI 产出。**目前未用真实模型验证理解效果，离线响应只验证接口与程序行为。**
+默认进入“AI整理（工程接口）”。没有配置、限流（429）或模型失败时，前端**自动回退规则引擎**，并在消息旁标注「规则回退」、在建议上标注「规则引擎」，绝不冒充 AI 结果。主动选择“规则演示”则完全不调用模型。离线测试只验证接口与程序行为；理解效果以部署后真实模型为准。
 
 ## HTTP 协议
 

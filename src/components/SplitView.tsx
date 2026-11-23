@@ -32,7 +32,7 @@ export default function SplitView({ target, onBack, now, gotoSource }: { target:
       const R = wrap.querySelector(`#split-right .ev-item[data-ev-idx="${idx}"]`); if (!R) return;
       const lr = L.getBoundingClientRect(), rr = (R as any).getBoundingClientRect();
       const x1 = lr.right - wr.left, y1 = lr.top - wr.top + lr.height / 2, x2 = rr.left - wr.left, y2 = rr.top - wr.top + rr.height / 2; const mx = (x1 + x2) / 2;
-      paths += `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="#3b63ff" stroke-width="1.5" opacity="0.5"/>`;
+      paths += `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="#bc5a34" stroke-width="1.6" stroke-dasharray="5 4" opacity="0.55" class="ev-link"/>`;
     });
     setSvg(paths);
   };

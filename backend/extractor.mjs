@@ -6,21 +6,22 @@ export const SYSTEM_PROMPT=`你是群通知结构化提取器。只返回JSON，
 日期以now和Asia/Shanghai为准，2024级是年级，不是年份。下午14:30是14:30。相对日期可结合明确日期理解；日期与星期矛盾或时间、地点互相冲突时写needsConfirmation，不擅自覆盖。
 仅日期精度时value设当日23:59:00+08:00，这不是原文明确时刻。线下活动缺地点用onsite/null；线上记录平台或链接，无需固定地点用none/null，无法判断用unknown/null。
 记录签到、提交、参与对象、请假要求于requirements，不能虚构。未给时间用null/missing，保留待确认。不要输出人物权限或置信分，发布者身份由程序确认。`;
-export function configuration(env=process.env){return {configured:Boolean(env.WHALE_EXTRACT_URL||(env.DEEPSEEK_API_KEY&&env.DEEPSEEK_MODEL)),provider:env.WHALE_EXTRACT_URL?'whale':'deepseek',model:env.WHALE_EXTRACT_URL?'宿主提取服务':env.DEEPSEEK_MODEL||null};}
+import {PROVIDERS,activeSelection,configuredProviders,defaultModelOf,chatJSON} from './providers.mjs';
+// 默认供应商：AI_PROVIDER 指定，否则按 AgentScope → DeepSeek 顺序取第一个已配置密钥的；模型见 backend/providers.mjs。
+export const DEFAULT_MODEL=PROVIDERS.deepseek.defaultModel;
+export function configuration(env=process.env){
+ if(env.WHALE_EXTRACT_URL)return{configured:true,provider:'whale',model:'宿主提取服务',providers:[]};
+ const sel=activeSelection(env);
+ return{configured:Boolean(sel),provider:sel?.provider||null,model:sel?.model||null,providers:configuredProviders(env).map(id=>({id,label:PROVIDERS[id].label,default:defaultModelOf(id,env)}))};
+}
 async function limitedJSON(response){const reader=response.body.getReader();let bytes=0,chunks=[];try{for(;;){const {done,value}=await reader.read();if(done)break;bytes+=value.length;if(bytes>1024*1024)throw new ExtractionError('BAD_AI_RESPONSE','模型返回内容过大');chunks.push(Buffer.from(value));}}finally{await reader.cancel().catch(()=>{});}try{return JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new ExtractionError('BAD_AI_RESPONSE','模型未返回完整JSON');}}
-// 共享模型调用：DeepSeek JSON 或宿主 bridge。供 extract / memory-extract / initiative 复用。
+// 共享模型调用：AgentScope（SSE）/ DeepSeek（JSON）或宿主 bridge。供 extract / memory-extract / initiative / memory-chat 复用。
 export async function callModel(systemPrompt,payload,{env=process.env,fetcher=fetch,bridgeUrl=null,bridgeToken=null,maxTokens=4096}={}){
- if(!bridgeUrl&&!(env.DEEPSEEK_API_KEY&&env.DEEPSEEK_MODEL))throw new ExtractionError('AI_NOT_CONFIGURED','AI尚未配置：需要模型密钥和型号');
- const endpoint=bridgeUrl||new URL('chat/completions',(env.DEEPSEEK_BASE_URL||'https://api.deepseek.com').replace(/\/?$/,'/')).href;
- const url=new URL(endpoint);if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)))throw new ExtractionError('AI_CONFIG_ERROR','模型地址须使用HTTPS，或本机回环HTTP');
- const body=bridgeUrl?payload:{model:env.DEEPSEEK_MODEL,messages:[{role:'system',content:systemPrompt},{role:'user',content:JSON.stringify(payload)}],response_format:{type:'json_object'},max_tokens:Math.min(4096,Math.max(256,maxTokens)),stream:false};
- const token=bridgeUrl?bridgeToken:env.DEEPSEEK_API_KEY;
- let res;try{res=await fetcher(url,{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(35000)});}catch{throw new ExtractionError('AI_UNAVAILABLE','AI连接失败或超时，请稍后重试');}
+ if(!bridgeUrl)return chatJSON(systemPrompt,payload,{env,fetcher,maxTokens});
+ const url=new URL(bridgeUrl);if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)))throw new ExtractionError('AI_CONFIG_ERROR','模型地址须使用HTTPS，或本机回环HTTP');
+ let res;try{res=await fetcher(url,{method:'POST',headers:{'Content-Type':'application/json',...(bridgeToken?{Authorization:`Bearer ${bridgeToken}`}:{})},body:JSON.stringify(payload),redirect:'error',signal:AbortSignal.timeout(35000)});}catch{throw new ExtractionError('AI_UNAVAILABLE','AI连接失败或超时，请稍后重试');}
  if(!res.ok){await res.body?.cancel().catch(()=>{});throw new ExtractionError(res.status===401||res.status===403?'AI_AUTH_ERROR':'AI_UNAVAILABLE',res.status===401||res.status===403?'AI凭据不可用，请检查服务端配置':'AI服务暂时不可用，请稍后重试');}
- const data=await limitedJSON(res);
- if(bridgeUrl)return data.extraction;
- if(data.choices?.[0]?.finish_reason!=='stop')throw new ExtractionError('BAD_AI_RESPONSE','AI结果未完成，未保存');
- try{return JSON.parse(data.choices[0].message.content);}catch{throw new ExtractionError('BAD_AI_RESPONSE','AI结果不是可用JSON，未保存');}
+ return (await limitedJSON(res)).extraction;
 }
 export async function extract(request,{env=process.env,fetcher=fetch}={}){
  validateRequest(request);const config=configuration(env);if(!config.configured)throw new ExtractionError('AI_NOT_CONFIGURED','AI尚未配置，消息已保留，可在接入后重试');

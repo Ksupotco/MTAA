@@ -1,7 +1,7 @@
 {
   "name": "whale-demo-visual",
   "private": true,
-  "version": "2.0.0",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "start": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "node --check server.mjs && node --check backend/handler.mjs && node --check sites/api.mjs",
+    "verify": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "clsx": "2.1.1",
@@ -28,5 +30,9 @@
     "typescript": "5.9.3",
     "vite": "7.3.7",
     "vite-plugin-singlefile": "2.3.0"
+  },
+  "description": "Whale · 消息有着落 —— 2026 Qoder 高校创造力大赛参赛作品",
+  "engines": {
+    "node": ">=20"
   }
 }

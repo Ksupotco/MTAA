@@ -10,9 +10,13 @@ WorkingDirectory=/opt/whale-demo
 ExecStart=/usr/bin/node server.mjs
 Environment=HOST=127.0.0.1
 Environment=PORT=18761
+Environment=TRUST_PROXY=1
+# AI 调用保护（可选）：每 IP 每 10 分钟 30 次；全站每日 1000 次
+# Environment=AI_RATE_PER_IP=30
+# Environment=AI_DAILY_LIMIT=1000
 # 公网同源放行：与 nginx server_name 一致。未配置时仅本机同源。
 Environment=PUBLIC_ORIGIN=https://tianchi.wangfanlab.com
-# 公网默认不配置 DEEPSEEK_API_KEY，跑规则/模拟模式；如需 AI，用 EnvironmentFile 指向受保护的 .env（勿提交 Git）。
+# 公网默认不配置 AGENTSCOPE_API_KEY / DEEPSEEK_API_KEY，跑规则/模拟模式；如需 AI，用 EnvironmentFile 指向受保护的 .env（勿提交 Git）。
 # EnvironmentFile=/opt/whale-demo/.env
 Restart=always
 RestartSec=2

@@ -2,6 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {memoryProfiles,profileFor,simulatedMemoryAnswer} from '../../lib/memory-profiles.js';
 import {validateChatAnswer} from '../../lib/memory-chat-contract.js';
 import {store,state} from '../store';
+import {apiFetch} from '../api';
 import {Button,Badge,GlassCard} from './ui';
 type Result={question:string;response?:any;error?:string};
 const KEY='whale.memory-chat.v1';
@@ -13,7 +14,7 @@ export default function MemoryChat(){
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(results));setStorageError('');}catch{setStorageError('回答暂未保存，当前页面仍可查看。');}},[results]);
  useEffect(()=>{if(highlight)document.getElementById('profile-memory-'+highlight)?.scrollIntoView({block:'nearest',behavior:'smooth'});},[profileId,highlight]);
  const run=async(compare=false)=>{const q=question.trim();if(!q||busy)return;const ids=compare?memoryProfiles.map(p=>p.id):[profileId],mode=store.extractMode,now=state().now;setBusy(true);controller.current=new AbortController();setResults(prev=>{const copy={...prev};ids.forEach(id=>delete copy[id]);return copy;});
- try{for(const id of ids){let response:any;try{if(mode==='rules'){response={...simulatedMemoryAnswer(id),profileId:id};}else{const res=await fetch('/api/v1/memory-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:1,profileId:id,question:q,now}),signal:AbortSignal.any([controller.current.signal,AbortSignal.timeout(45000)])});const data=await res.json();if(!res.ok)throw Object.assign(new Error(data.message||'回答暂不可用'),{code:data.code});if(data.version!==1||data.profileId!==id||data.engine?.type!=='ai')throw new Error('返回档案或来源标识无效');validateChatAnswer(data.extraction,id);response=data;}setResults(prev=>({...prev,[id]:{question:q,response}}));}
+ try{for(const id of ids){let response:any;try{if(mode==='rules'){response={...simulatedMemoryAnswer(id),profileId:id};}else{const res=await apiFetch('/api/v1/memory-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:1,profileId:id,question:q,now}),signal:AbortSignal.any([controller.current.signal,AbortSignal.timeout(45000)])});const data=await res.json();if(!res.ok)throw Object.assign(new Error(data.message||'回答暂不可用'),{code:data.code});if(data.version!==1||data.profileId!==id||data.engine?.type!=='ai')throw new Error('返回档案或来源标识无效');validateChatAnswer(data.extraction,id);response=data;}setResults(prev=>({...prev,[id]:{question:q,response}}));}
  catch(e:any){if(controller.current.signal.aborted)return;setResults(prev=>({...prev,[id]:{question:q,error:e.code?e.message:'请求未完成，可稍后重试。'}}));if(e.code==='AI_NOT_CONFIGURED')break;}}
  }finally{setBusy(false);}};
  const shown=memoryProfiles.filter(p=>results[p.id]);

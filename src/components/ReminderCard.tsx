@@ -1,24 +1,35 @@
-import { useState } from "react";
-import { BellRing, Check, Ban, CalendarSearch } from "lucide-react";
-import { store, act } from "../store";
+import { useEffect, useRef } from "react";
+import { BellRing, Check, Ban, CalendarSearch, ChevronDown } from "lucide-react";
+import { store, act, notify } from "../store";
 import { fmt } from "../fmt";
-import { Button } from "./ui";
+import { WhaleLogo } from "./ui";
 
+// 手机通知横幅样式：新提醒到达时自动展开；可「知道了」「不再提醒这类」「查看日程」，也可收起为角标。
 export default function ReminderCard({ gotoCenter }: { gotoCenter: () => void }) {
-  const [expanded,setExpanded]=useState(false);
   const unread = store.initiative.inbox.filter((r: any) => !r.read);
+  const lastSeen = useRef<string | null>(null);
+  const latest = unread[unread.length - 1];
+  useEffect(() => { if (latest && latest.id !== lastSeen.current) { lastSeen.current = latest.id; store.reminderOpen = true; notify(); } }, [latest?.id]);
   if (!unread.length) return null;
-  const r = unread[unread.length - 1];
-  if(!expanded)return <button aria-label={`展开${unread.length}条未读提醒`} onClick={()=>setExpanded(true)} className="card fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full px-4 py-3 text-sm text-clay-deep"><BellRing className="h-4 w-4"/>{unread.length} 条提醒 · 展开</button>;
+  const close = () => { store.reminderOpen = false; notify(); };
+  if (!store.reminderOpen) return <button aria-label={`展开${unread.length}条未读提醒`} onClick={() => { store.reminderOpen = true; notify(); }} className="reminder-pill"><BellRing className="h-4 w-4" />{unread.length} 条提醒</button>;
+  const r = latest;
+  const urgent = r.urgency === "high";
   return (
-    <div className="card fixed bottom-5 right-5 z-50 w-[340px] max-w-[calc(100vw-32px)] rounded-2xl p-4 animate-fade-up">
-      <div className="flex items-center gap-2 text-clay-deep"><button className="ml-auto text-sm" aria-label="收起提醒" onClick={()=>setExpanded(false)}>收起</button><BellRing className="h-4 w-4" /><span className="text-xs font-semibold">主动提醒 · 门控通过</span></div>
-      <div className="mt-2 text-sm font-medium text-slate-800">{r.text}</div>
-      <div className="mt-1 text-xs text-slate-500">{r.reason} · {fmt(r.at)}</div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => act.iniRead(r.id)}><Check className="h-3 w-3" />知道了</Button>
-        <Button size="sm" variant="ghost" onClick={() => act.iniStop(r.topic)}><Ban className="h-3 w-3" />不再提醒这类</Button>
-        <Button size="sm" variant="soft" onClick={gotoCenter}><CalendarSearch className="h-3 w-3" />查看日程</Button>
+    <div className="push-wrap" role="alertdialog" aria-label="主动提醒">
+      <div className={"push " + (urgent ? "is-urgent" : "")}>
+        <div className="push-head">
+          <span className="push-app"><WhaleLogo className="h-3.5 w-3.5" /></span><b>WHALE</b><span>· {r.action === "remind" ? "截止提醒" : "重要消息"}</span>
+          <span className="ml-auto">{fmt(r.at).slice(-5)}</span>
+          <button aria-label="收起提醒" onClick={close}><ChevronDown className="h-4 w-4" /></button>
+        </div>
+        <div className="push-title">{r.text}</div>
+        <div className="push-body">{r.reason}{unread.length > 1 ? ` · 还有 ${unread.length - 1} 条未读` : ""}</div>
+        <div className="push-actions">
+          <button onClick={() => act.iniRead(r.id)}><Check className="h-3.5 w-3.5" />知道了</button>
+          <button onClick={() => act.iniStop(r.topic)}><Ban className="h-3.5 w-3.5" />不再提醒这类</button>
+          <button onClick={() => { close(); gotoCenter(); }}><CalendarSearch className="h-3.5 w-3.5" />查看日程</button>
+        </div>
       </div>
     </div>
   );

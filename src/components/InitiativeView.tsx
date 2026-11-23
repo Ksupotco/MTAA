@@ -1,7 +1,7 @@
 import { BellRing, ScrollText, Check, Ban, CalendarSearch } from "lucide-react";
 import { store, act, notify, persist } from "../store";
 import { fmt } from "../fmt";
-import { GlassCard, Badge, Button, SectionHeading } from "./ui";
+import { GlassCard, Badge, Button, SectionHeading, EmptyState } from "./ui";
 
 const gateTone: any = { ready: "green", deferred: "amber", needs_approval: "rose", disabled: "slate" };
 export default function InitiativeView({ gotoCenter }: { gotoCenter: () => void }) {
@@ -37,7 +37,7 @@ export default function InitiativeView({ gotoCenter }: { gotoCenter: () => void 
               <Button size="sm" variant="soft" onClick={gotoCenter}><CalendarSearch className="h-3 w-3" />查看日程</Button>
             </div>
           </div>
-        )) : <p className="text-sm text-slate-500">暂无主动提醒。推进时钟或开启自动播放观察节拍。</p>}
+        )) : <EmptyState icon={BellRing} title="还没有主动提醒" sub="用上方演示时钟「下一次提醒」快进，或开启自动播放观察每个节拍的判断。" />}
       </GlassCard>
 
       <SectionHeading eyebrow="Ledger" title="决策账本" sub="每次节拍一行；可展开完整提示词。" />
@@ -46,7 +46,7 @@ export default function InitiativeView({ gotoCenter }: { gotoCenter: () => void 
           <details key={e.id} className="mb-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
             <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-sm">
               <span className="font-mono text-xs text-slate-500">{fmt(e.at)}</span>
-              <Badge tone="whale">{e.engine === "ai" ? "AI判断" : "模拟判断"}</Badge>
+              <Badge tone={e.engine === "ai" ? "green" : "whale"}>{e.engine === "ai" ? "AI判断" : e.fallback ? "AI失败·模拟回退" : "模拟判断"}</Badge>
               <Badge tone={gateTone[e.gate.status] || "slate"}>{e.gate.status}</Badge>
               <span className="text-slate-700">{e.decision.action}</span>
               <span className="text-xs text-slate-400">{e.promptSummary}</span>
@@ -54,7 +54,7 @@ export default function InitiativeView({ gotoCenter }: { gotoCenter: () => void 
             <p className="mt-2 text-xs text-slate-600">决策理由：{e.decision.reason} · 门控：{e.gate.reason}{e.delivered ? " · 已投递" : ""}</p>
             <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-slate-50 p-3 font-mono text-[11px] text-slate-600">{e.prompt}</pre>
           </details>
-        )) : <p className="text-sm text-slate-500">还没有节拍记录。</p>}
+        )) : <EmptyState icon={ScrollText} title="还没有节拍记录" sub="每次节拍都会记录：看到了什么、怎么判断、门控是否放行。" />}
       </GlassCard>
     </div>
   );

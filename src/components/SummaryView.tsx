@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Plus, Inbox, CalendarRange, RotateCcw } from "lucide-react";
+import { Plus, Inbox, CalendarRange, RotateCcw, MessagesSquare, Sparkles, Cpu } from "lucide-react";
 import { store, tickStates, allRows, act } from "../store";
 import { deadlineBucket, isLongTask, longState, day } from "../../lib/engine.js";
 import { dueText, statusText, scName, fmt } from "../fmt";
-import { GlassCard, Badge, Button, SectionHeading } from "./ui";
+import { GlassCard, Badge, Button, SectionHeading, EmptyState } from "./ui";
+import type { View } from "../store";
 
-export default function SummaryView({ openSplit }: { openSplit: (t: any) => void }) {
+export default function SummaryView({ openSplit, goto }: { openSplit: (t: any) => void; goto?: (v: View) => void }) {
   const now = state_now();
   const [query,setQuery] = useState("");
   const [group,setGroup] = useState("all");
@@ -25,14 +26,14 @@ export default function SummaryView({ openSplit }: { openSplit: (t: any) => void
           <Badge tone="whale">{pending.length} 项待确认</Badge>
         </div>
         {pending.length ? pending.map((g: any) => (
-          <div key={`${g.group}:${g.id}`} className="mb-2 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/80 p-3">
+          <div key={`${g.group}:${g.id}`} className="sug-row animate-rise">
             <button className="min-w-0 flex-1 text-left" onClick={() => openSplit({ type: "suggestion", id: g.id, scene: g.group })}>
               <div className="truncate font-medium text-slate-800">{g.title}</div>
-              <div className="text-xs text-slate-500">{scName(g.group)} · {g.author} · {fmt(g.time)} · {g.origin === "ai" ? "AI提取" : "规则模拟"}</div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500"><span>{scName(g.group)} · {g.author} · {fmt(g.time)}</span>{g.due ? <span className="text-ink-2">· 截止 {fmt(g.due)}</span> : <span>· 截止待确认</span>}<span className={g.origin === "ai" ? "origin-tag is-ai" : "origin-tag"}>{g.origin === "ai" ? <><Sparkles className="h-3 w-3" />AI提取</> : <><Cpu className="h-3 w-3" />规则引擎</>}</span></div>
             </button>
             <button title="直接添加" aria-label={`添加待办：${g.title}`} onClick={() => act.addSug(g.group, g.id)} className="grid h-9 w-9 flex-none place-items-center rounded-full border border-teal-300 bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white"><Plus className="h-5 w-5" /></button>
           </div>
-        )) : <p className="text-sm text-slate-500">暂无待确认建议。发送新消息后会在这里生成待办建议。</p>}
+        )) : <EmptyState icon={Inbox} title="没有待确认的建议" sub="群里出现新的作业、活动或变更时，Whale 会先在这里给出建议，等你确认。" action={goto && <Button size="sm" variant="soft" onClick={() => goto("messages")}><MessagesSquare className="h-3.5 w-3.5" />去发一条通知</Button>} />}
         {handled.length > 0 && (
           <details className="mt-3">
             <summary className="cursor-pointer text-sm text-slate-500">已处理建议 · {handled.length}</summary>

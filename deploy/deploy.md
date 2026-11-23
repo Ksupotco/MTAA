@@ -4,9 +4,11 @@
 
 ## 0. 安全默认
 
-- 公网默认**不配置** `DEEPSEEK_API_KEY`，三个 AI 端点返回 `AI_NOT_CONFIGURED`，前端自动走规则/模拟判断，绝不假装已调用模型。
-- 如需在公网启用 AI，密钥只放源站受保护的 `.env`（`EnvironmentFile`），不进 Git、不进浏览器、不写日志。
-- `server.mjs` 默认监听 `127.0.0.1`，只经 nginx 反代暴露；POST 端点仅放行回环同源或 `PUBLIC_ORIGIN` 配置的公网来源。
+> 比赛提交的作品链接必须是 Qoder Sites 地址，见 [qoder-sites.md](qoder-sites.md)。本文是自托管的备用方案。
+
+- 要启用真实 AI，就把 `AGENTSCOPE_API_KEY`（或 `DEEPSEEK_API_KEY`）写进源站受保护的 `.env`（通过 systemd 的 `EnvironmentFile` 加载）。这个文件不进 Git，不下发到浏览器，也不写进日志。未配置时，接口返回 `AI_NOT_CONFIGURED`，前端自动回退规则引擎并标注出来。
+- 公网保护：单 IP 滑动窗口限流（`AI_RATE_PER_IP` / `AI_RATE_WINDOW_MIN`），加上全站每日额度（`AI_DAILY_LIMIT`）；超出时返回 429，前端回退规则引擎。部署在 nginx 或 Cloudflare 后面时，请设置 `TRUST_PROXY=1`。
+- `server.mjs` 默认只监听 `127.0.0.1`，对外只通过 nginx 反向代理暴露；POST 接口只接受同源请求，或 `ALLOWED_ORIGINS` / `PUBLIC_ORIGIN` 里配置的来源。
 
 ## 1. 上传代码
 
@@ -20,7 +22,7 @@ scp -r whale-demo user@your-server:/opt/whale-demo
 
 ## 2. Node 环境
 
-源站安装 Node.js ≥ 18（建议 20 LTS）。本 Demo 无第三方依赖、无构建，`node server.mjs` 即可。验证：`node --version`。
+源站安装 Node.js ≥ 18（建议 20 LTS）。先在本地运行 `npm run verify` 生成 `dist/index.html`，再连同 `dist/` 一起上传；服务端运行时没有第三方依赖，执行 `node server.mjs` 即可。验证：`node --version`。
 
 ## 3. systemd 服务
 
@@ -54,7 +56,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ```
 curl -I https://tianchi.wangfanlab.com/            # 200
-curl https://tianchi.wangfanlab.com/api/v1/ai-status  # configured:false（默认模拟）
+curl https://tianchi.wangfanlab.com/api/v1/ai-status  # configured:true + limits（已配置密钥时）
 ```
 
 ## 边界
