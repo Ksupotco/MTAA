@@ -1,0 +1,23 @@
+# Whale Demo systemd 单元（部署骨架）。安装路径以 /opt/whale-demo 为例，按实际调整。
+# 放置：/etc/systemd/system/whale-demo.service；systemctl daemon-reload && systemctl enable --now whale-demo。
+[Unit]
+Description=Whale Demo (message-to-momentum preview)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/whale-demo
+ExecStart=/usr/bin/node server.mjs
+Environment=HOST=127.0.0.1
+Environment=PORT=18761
+# 公网同源放行：与 nginx server_name 一致。未配置时仅本机同源。
+Environment=PUBLIC_ORIGIN=https://tianchi.wangfanlab.com
+# 公网默认不配置 DEEPSEEK_API_KEY，跑规则/模拟模式；如需 AI，用 EnvironmentFile 指向受保护的 .env（勿提交 Git）。
+# EnvironmentFile=/opt/whale-demo/.env
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
