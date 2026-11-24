@@ -1,69 +1,86 @@
 import { useMemo, useState } from "react";
-import { GitBranch, RefreshCw, RotateCcw } from "lucide-react";
-import { currentGroupMemories, freshGroupDemo, refreshGroupDemo, segmentGroupMessages, stageGroupMessage } from "../../lib/group-memory-demo.js";
+import { GitBranch, RefreshCw, RotateCcw, Search } from "lucide-react";
+import { currentGroupMemories, freshGroupDemo, groupMemberPortrait, groupMemoryGraph, groupSpace, refreshGroupDemo, stageGroupMessage } from "../../lib/group-memory-demo.js";
 import { Badge, Button, GlassCard } from "./ui";
+import GroupMemoryGraph from "./GroupMemoryGraph";
 
 const time = (ms: number) => new Date(ms).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
-const colors: Record<string, string> = { active: "#427a69", superseded: "#b88245", revoked: "#a87171" };
+const statuses: Record<string, string> = { active: "当前有效", superseded: "已被更正", revoked: "已撤销" };
+const kinds = [{ id: "", label: "全部节点" }, { id: "member", label: "成员" }, { id: "keyword", label: "关键词" }, { id: "memory", label: "记忆" }, { id: "evidence", label: "证据" }];
 
 export default function GroupMemoryDemo() {
   const [data, setData] = useState<any>(freshGroupDemo);
   const [selected, setSelected] = useState("group");
-  const [notice, setNotice] = useState("群消息已备好；点击「手动整合」形成记忆");
-  const segments = useMemo(() => segmentGroupMessages(data.messages), [data.messages]);
+  const [mode, setMode] = useState<"2d" | "3d">("2d");
+  const [kind, setKind] = useState("");
+  const [query, setQuery] = useState("");
+  const [indexMode, setIndexMode] = useState<"segments" | "members">("segments");
+  const [notice, setNotice] = useState("群消息已备好；手动整合后可查看记忆与证据关系");
+  const graph = useMemo(() => groupMemoryGraph(data), [data]);
+  const node: any = graph.nodes.find((n: any) => n.id === selected);
+  const message = data.messages.find((m: any) => m.id === node?.messageId);
+  const memory = data.memories.find((m: any) => m.id === node?.memoryId);
+  const segment: any = graph.segments.find((s: any) => s.id === node?.segmentId);
+  const portrait = node?.author ? groupMemberPortrait(data, node.author) : null;
+  const keywordSegments: any[] = node?.keyword ? graph.segments.filter((s: any) => s.keywords.includes(node.keyword)) : [];
   const current = currentGroupMemories(data);
   const pending = data.messages.filter((m: any) => !data.processed.includes(m.id)).length;
   const old = data.memories.find((m: any) => m.id === "meeting-v1");
   const newer = data.memories.find((m: any) => m.id === "meeting-v2");
   const canCorrect = old?.status === "active" && !data.messages.some((m: any) => m.id === "g5");
   const canRevoke = newer?.status === "active" && !data.messages.some((m: any) => m.id === "g6");
-  const message = data.messages.find((m: any) => `source-${m.id}` === selected);
-  const memory = data.memories.find((m: any) => m.id === selected);
-  const points = data.memories.map((m: any, i: number) => ({ ...m, x: 360, y: 90 + i * 125 }));
+  const evidence = (id: string, label = "查看原话") => <button className="group-memory-link" onClick={() => setSelected(`source-${id}`)}>{label} →</button>;
   function refresh() {
     const next = refreshGroupDemo(data);
     setData(next);
-    setNotice(next.lastRefresh.processed ? `已整合 ${next.lastRefresh.processed} 条新消息；再次刷新不会重复写入` : "没有新消息，本次没有重复写入");
-    if (next.memories.length && selected === "group") setSelected(next.memories[0].id);
+    setNotice(next.lastRefresh.processed ? `已整合 ${next.lastRefresh.processed} 条新消息；再次刷新不会重复写入` : "没有新消息，未重复写入");
+    if (selected === "group" && next.memories.length) setSelected(`memory:${next.memories[0].id}`);
   }
-  function stage(kind: "correction" | "revoke") {
-    setData(stageGroupMessage(data, kind));
-    setNotice(kind === "correction" ? "更正消息已进入群聊，点击「手动整合」更新事实" : "撤销消息已进入群聊，点击「手动整合」使当前安排失效");
+  function stage(change: "correction" | "revoke") {
+    setData(stageGroupMessage(data, change));
+    setNotice(change === "correction" ? "更正消息已进入群聊；点击「手动整合」更新事实" : "撤销消息已进入群聊；点击「手动整合」使安排失效");
   }
-  return <GlassCard hover={false} className="mb-6 p-5">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><div className="flex items-center gap-2"><GitBranch className="h-5 w-5 text-whale-600"/><h2 className="font-display text-lg font-bold">群记忆工作台</h2><Badge tone="whale">虚构数据演示</Badge></div>
-        <p className="mt-1 text-sm text-slate-600">一段群聊怎样形成话题、成员偏好和可更正的事实。所有操作只影响这张演示卡片</p></div>
-      <Button size="sm" variant="ghost" onClick={() => { setData(freshGroupDemo()); setSelected("group"); setNotice("演示已重置"); }}><RotateCcw className="h-3 w-3"/>重置</Button>
+  return <GlassCard hover={false} className="group-memory-workspace mb-6 p-5">
+    <header className="flex flex-wrap items-start justify-between gap-3">
+      <div><div className="flex items-center gap-2"><GitBranch className="h-5 w-5 text-clay-deep"/><h2 className="font-display text-xl font-semibold">群记忆空间</h2><Badge tone="whale">虚构数据演示</Badge></div><p className="mt-1 text-sm text-muted">从群聊到话题、成员画像和有证据的记忆</p></div>
+      <Button size="sm" variant="ghost" onClick={() => { setData(freshGroupDemo()); setSelected("group"); setNotice("演示已重置"); }}><RotateCcw className="h-3 w-3"/>重置演示</Button>
+    </header>
+    <div className="group-memory-summary mt-5">
+      <div className="group-memory-space"><span className="group-memory-icon">项</span><div><b>{groupSpace.name}</b><p>{groupSpace.description}</p></div></div>
+      {[[groupSpace.members.length,"位群成员"],[data.messages.length,"条原始消息"],[graph.segments.length,"段对话"],[data.memories.length,"项记忆版本"]].map(([n,label]) => <div className="group-memory-stat" key={String(label)}><strong>{n}</strong><span>{label}</span></div>)}
     </div>
     <div className="mt-4 flex flex-wrap items-center gap-2">
-      <Button onClick={refresh}><RefreshCw className="h-3 w-3"/>手动整合 {pending ? `（${pending} 条待处理）` : "（无新消息）"}</Button>
+      <Button onClick={refresh}><RefreshCw className="h-3 w-3"/>手动整合 {pending ? `（${pending} 条）` : "（无新消息）"}</Button>
       <Button variant="ghost" disabled={!canCorrect} onClick={() => stage("correction")}>加入更正消息</Button>
       <Button variant="ghost" disabled={!canRevoke} onClick={() => stage("revoke")}>加入撤销消息</Button>
-      <span role="status" className="text-xs text-slate-600">{notice}</span>
+      <span role="status" className="text-xs text-muted">{notice}</span>
     </div>
-    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(310px,0.75fr)]">
-      <section className="rounded-2xl border border-slate-200 bg-white/80 p-3" aria-label="二维记忆图谱">
-        <div className="flex items-center justify-between px-1"><b className="text-sm">二维记忆图谱</b><span className="text-xs text-slate-500">点击节点看依据</span></div>
-        <div className="overflow-x-auto"><svg viewBox="0 0 800 470" className="mt-2 min-w-[590px] w-full" role="img" aria-label="项目群、成员、记忆和原消息之间的关系">
-          {points.map((m: any) => <g key={`edge-${m.id}`} stroke="#b8c5c0" strokeWidth="2" fill="none"><path d={`M 137 ${m.subject === "小禾" ? 350 : 180} Q 235 ${m.y}, 302 ${m.y}`} /><path d={`M 419 ${m.y} L 611 ${m.y}`} />{m.previous && <path strokeDasharray="5 5" d={`M 360 ${points.find((p: any) => p.id === m.previous)?.y ?? 90} L 360 ${m.y}`} />}</g>)}
-          {([{ id: "group", x: 94, y: 180, label: "项目群", color: "#5e8175" }, { id: "member", x: 94, y: 350, label: "小禾", color: "#8a769a" }, ...points.map((m: any) => ({ id: m.id, x: m.x, y: m.y, label: m.id === "member-preference" ? "表达偏好" : m.id === "meeting-v1" ? "原安排" : "更正安排", color: colors[m.status] })), ...points.map((m: any) => ({ id: `source-${m.evidence}`, x: 670, y: m.y, label: "原话证据", color: "#aa8a61" }))] as any[]).map(node => <g key={node.id} role="button" tabIndex={0} aria-label={`查看${node.label}`} onClick={() => setSelected(node.id)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") setSelected(node.id); }} className="cursor-pointer"><circle cx={node.x} cy={node.y} r={selected === node.id ? 52 : 46} fill={node.color} stroke={selected === node.id ? "#253e44" : "white"} strokeWidth="4"/><text x={node.x} y={node.y + 5} textAnchor="middle" fill="white" fontSize="15" fontWeight="600">{node.label}</text></g>)}
-        </svg></div>
-        <div className="rounded-xl bg-slate-50 p-3 text-sm"><b>当前可用记忆：</b>{current.length ? current.map((m: any) => m.summary).join("；") : "暂无。候选尚未整合，或安排已撤销"}</div>
-        <div className="mt-2 rounded-xl bg-teal-50 p-3 text-sm"><b>演示中的提醒判断：</b>{current.some((m: any) => m.slot === "meeting") ? "可依据当前项目讨论安排准备提醒" : data.memories.some((m: any) => m.slot === "meeting") ? "讨论已撤销，不再依据旧安排提醒" : "尚无已整合的讨论安排"}</div>
+    <div className="group-memory-main mt-5">
+      <section className="group-memory-panel" aria-label="记忆图谱">
+        <div className="group-memory-panel-head"><div><h3 className="font-display text-lg font-semibold">记忆图谱</h3><p>点开节点，沿关系查看原话和状态</p></div><div className="group-memory-mode" aria-label="图谱维度"><button aria-pressed={mode === "2d"} onClick={() => setMode("2d")}>2D</button><button aria-pressed={mode === "3d"} onClick={() => setMode("3d")}>3D</button></div></div>
+        <div className="group-memory-toolbar"><label><Search size={15}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索人物、话题或记忆" aria-label="搜索图谱"/></label><select aria-label="节点类型" value={kind} onChange={e => setKind(e.target.value)}>{kinds.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}</select></div>
+        <GroupMemoryGraph graph={graph} selected={selected} onSelect={setSelected} query={query} kind={kind} mode={mode}/>
+        <div className="group-memory-legend">{[["群空间","group"],["成员","member"],["对话段","segment"],["关键词","keyword"],["记忆","memory"],["原话证据","evidence"]].map(([label,k]) => <span key={k}><i className={`group-memory-dot ${k}`}/>{label}</span>)}</div>
       </section>
-      <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 text-sm" aria-live="polite">
-        <b>节点详情</b>
-        {message ? <><p className="mt-3 font-medium">{message.author} · {time(message.time)}</p><blockquote className="mt-2 border-l-2 border-teal-400 pl-3">{message.text}</blockquote><p className="mt-2 text-xs text-slate-500">虚构项目群 · 消息 {message.id}</p></>
-          : memory ? <><p className="mt-3 font-medium">{memory.summary}</p><p className="mt-2">类型：{memory.kind} · 状态：{memory.status === "active" ? "当前有效" : memory.status === "superseded" ? "已被更正" : "已撤销"}</p><p className="mt-1 text-xs text-slate-500">主体：{memory.subject}{memory.previous ? ` · 接替 ${memory.previous}` : ""}</p><button className="mt-3 text-whale-700 underline" onClick={() => setSelected(`source-${memory.evidence}`)}>查看来源原话</button>{memory.changedBy && <button className="ml-3 text-whale-700 underline" onClick={() => setSelected(`source-${memory.changedBy}`)}>查看更正或撤销原话</button>}</>
-          : <><p className="mt-3">{selected === "member" ? "小禾的群内自述形成一条表达偏好：先看图，再讨论细节。这是有来源的简短画像，不推测性格" : "项目群空间保留群公共事实和成员公开自述；旧版本留在图中，但退出当前可用记忆"}</p>{selected === "member" && data.memories.some((m: any) => m.slot === "preference") && <button className="mt-3 text-whale-700 underline" onClick={() => setSelected("source-g2")}>查看小禾的原话</button>}</>}
-      </section>
+      <aside className="group-memory-panel group-memory-detail" aria-live="polite">
+        <div className="group-memory-panel-head"><div><h3 className="font-display text-lg font-semibold">节点详情</h3><p>每条结论都能回到消息来源</p></div></div>
+        <div className="group-memory-detail-body">
+          <Badge tone={node?.kind === "memory" ? "teal" : "slate"}>{({ group:"群空间", member:"成员画像", segment:"对话段", keyword:"群聊关键词", memory:"记忆版本", evidence:"原话证据" } as any)[node?.kind || "group"]}</Badge>
+          <h4 className="font-display mt-3 text-lg font-semibold">{node?.label || groupSpace.name}</h4>
+          {message && <><p className="mt-3 text-sm text-muted">{message.author} · {time(message.time)}</p><blockquote className="group-memory-quote">{message.text}</blockquote><p className="mt-2 text-xs text-muted">原始群消息 · {message.id}</p></>}
+          {memory && <><p className="mt-3 text-sm">{memory.kind} · <b>{statuses[memory.status]}</b></p><p className="mt-1 text-xs text-muted">主体：{memory.subject}{memory.previous ? ` · 接替 ${memory.previous}` : ""}</p><div className="mt-3 flex flex-wrap gap-3">{evidence(memory.evidence,"查看形成依据")}{memory.changedBy && evidence(memory.changedBy,"查看状态变更依据")}{memory.previous && <button className="group-memory-link" onClick={() => setSelected(`memory:${memory.previous}`)}>查看旧版本 →</button>}</div></>}
+          {portrait && <><p className="mt-2 text-sm text-muted">本群 {portrait.messages.length} 条发言 · {portrait.topics.length} 个相关话题</p><div className="group-memory-tags">{portrait.topics.map((t: string) => <button key={t} onClick={() => setSelected(`keyword:${t}`)}>{t}</button>)}</div>{portrait.preferences.length ? portrait.preferences.map((p: any) => <div className="group-memory-insight" key={p.id}><b>公开自述</b><p>{p.summary}</p>{evidence(p.evidence)}</div>) : <p className="mt-3 text-sm text-muted">尚无明确偏好；讨论过的话题不会直接当作喜好</p>}{portrait.messages.slice(0,3).map((m: any) => <div className="group-memory-source" key={m.id}><span>{time(m.time)}</span><p>{m.text}</p>{evidence(m.id)}</div>)}</>}
+          {segment && <><p className="mt-2 text-sm text-muted">{segment.messages.length} 条消息 · {time(segment.messages[0].time)}</p><div className="group-memory-tags">{segment.keywords.map((w: string) => <button key={w} onClick={() => setSelected(`keyword:${w}`)}>{w}</button>)}</div>{segment.messages.map((m: any) => <div className="group-memory-source" key={m.id}><b>{m.author}</b><span> · {time(m.time)}</span><p>{m.text}</p>{evidence(m.id)}</div>)}</>}
+          {node?.keyword && <><p className="mt-2 text-sm text-muted">出现在 {keywordSegments.length} 段对话中</p>{keywordSegments.map(s => <div className="group-memory-insight" key={s.id}><button className="group-memory-link" onClick={() => setSelected(s.id)}>查看对话段 →</button>{s.messages.filter((m: any) => m.text.includes(node.keyword)).map((m: any) => <div key={m.id} className="mt-2 text-sm"><b>{m.author}</b>：{m.text}<div>{evidence(m.id)}</div></div>)}</div>)}</>}
+          {node?.kind === "group" && <><p className="mt-2 text-sm text-muted">{groupSpace.description}</p><p className="mt-3 text-sm">群公共事实与成员自述分开保存；旧版本保留依据，但不用于当前提醒</p><div className="mt-3 flex flex-wrap gap-2">{groupSpace.members.map(author => <button key={author} className="group-memory-member" onClick={() => setSelected(`member:${author}`)}>{author}</button>)}</div></>}
+        </div>
+      </aside>
     </div>
-    <div className="mt-4 grid gap-3 md:grid-cols-2">
-      {segments.map((segment: any, index: number) => <div key={segment.id} className="rounded-2xl border border-slate-200 bg-white/70 p-3"><b className="text-sm">对话段 {index + 1}</b><span className="ml-2 text-xs text-slate-500">{segment.messages.length} 条 · 间隔超过 30 分钟自动分段</span>
-        <div className="mt-2 flex flex-wrap gap-1">{segment.keywords.map((word: string) => <span key={word} className="rounded-full bg-teal-50 px-2 py-1 text-xs text-teal-800">{word}</span>)}</div>
-        {segment.messages.map((m: any) => <button key={m.id} onClick={() => setSelected(`source-${m.id}`)} className="mt-2 block w-full rounded-lg px-2 py-1 text-left text-xs hover:bg-slate-100"><b>{m.author}</b> · {time(m.time)} · {m.text}</button>)}
-      </div>)}
+    <div className="group-memory-bottom mt-5">
+      <section className="group-memory-panel"><div className="group-memory-panel-head"><div><h3 className="font-display text-lg font-semibold">群聊索引</h3><p>按时间分段，关键词取自本段原话</p></div><div className="group-memory-mode"><button aria-pressed={indexMode === "segments"} onClick={() => setIndexMode("segments")}>按对话</button><button aria-pressed={indexMode === "members"} onClick={() => setIndexMode("members")}>按成员</button></div></div>
+        <div className="group-memory-index">{indexMode === "segments" ? graph.segments.map((s: any,i: number) => <button key={s.id} className="group-memory-row" onClick={() => setSelected(s.id)}><span className="group-memory-row-icon">{i+1}</span><span><b>对话段 {i+1}</b><small>{s.messages.length} 条 · {time(s.messages[0].time)}</small></span><span className="group-memory-row-tags">{s.keywords.slice(0,3).join(" · ")}</span></button>) : groupSpace.members.map(author => { const p = groupMemberPortrait(data,author); return <button key={author} className="group-memory-row" onClick={() => setSelected(`member:${author}`)}><span className="group-memory-row-icon">{author.slice(0,1)}</span><span><b>{author}</b><small>{p.messages.length} 条公开发言</small></span><span className="group-memory-row-tags">{p.topics.slice(0,3).join(" · ")}</span></button>; })}</div>
+      </section>
+      <section className="group-memory-panel"><div className="group-memory-panel-head"><div><h3 className="font-display text-lg font-semibold">当前可用结论</h3><p>更正和撤销不会擦掉历史依据</p></div></div><div className="group-memory-index">{current.length ? current.map((m: any) => <button key={m.id} className="group-memory-row" onClick={() => setSelected(`memory:${m.id}`)}><span className="group-memory-row-icon">✓</span><span><b>{m.summary}</b><small>{m.kind} · 当前有效</small></span></button>) : <p className="p-4 text-sm text-muted">暂无有效结论。先整合群消息，或查看已撤销的历史版本</p>}</div><div className="group-memory-decision">{current.some((m: any) => m.slot === "meeting") ? "当前项目讨论可用于提醒" : data.memories.some((m: any) => m.slot === "meeting") ? "讨论已撤销，旧安排不会继续触发提醒" : "讨论安排尚未整合，暂不触发提醒"}</div></section>
     </div>
   </GlassCard>;
 }
